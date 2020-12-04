@@ -1,5 +1,5 @@
 const core = require('@actions/core');
-const hostiCli = require('hosti-cli/lib/dependencyResultionFactory');
+const cliCommandsExecuter = require('hosti-cli/lib/dependencyResultionFactory').cliCommandsExecuter;
 const prepopulateEnv = require('hosti-cli/lib/utils/cli-utils').prepopulateEnv;
 
 try {
@@ -10,7 +10,7 @@ try {
     prepopulateEnv({
         apiKey: tokenKey,
     });
-    hostiCli.cliCommandsExecuter({
+    cliCommandsExecuter.executeCommand({
         command: 1,
         deployLocation: location,
         deployProjectId: projectId
