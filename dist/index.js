@@ -6,7 +6,7 @@ require('./sourcemap-register.js');module.exports =
 /***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
 
 const core = __webpack_require__(42186);
-const hostiCli = __webpack_require__(60435);
+const cliCommandsExecuter = __webpack_require__(60435).cliCommandsExecuter;
 const prepopulateEnv = __webpack_require__(71666)/* .prepopulateEnv */ .Z_;
 
 try {
@@ -17,7 +17,7 @@ try {
     prepopulateEnv({
         apiKey: tokenKey,
     });
-    hostiCli.cliCommandsExecuter({
+    cliCommandsExecuter.executeCommand({
         command: 1,
         deployLocation: location,
         deployProjectId: projectId
