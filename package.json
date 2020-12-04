@@ -1,0 +1,31 @@
+{
+  "name": "hosti-deploy",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "lint": "eslint .",
+    "prepare": "ncc build index.js -o dist --source-map --license licenses.txt",
+    "test": "jest",
+    "all": "npm run lint && npm run prepare && npm run test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hosti-io/deploy.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/hosti-io/deploy/issues"
+  },
+  "dependencies": {
+    "@actions/core" : "^1.2.6",
+    "hosti-cli" : "^0.1.4"
+  },
+  "devDependencies": {
+    "@vercel/ncc": "^0.25.1",
+    "eslint": "^7.4.0",
+    "jest": "^26.1.0"
+  },
+  "homepage": "https://github.com/hosti-io/deploy#readme"
+}
