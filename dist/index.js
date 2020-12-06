@@ -26035,10 +26035,10 @@ class CliCommands {
                 projectId: projectId !== null && projectId !== void 0 ? projectId : ""
             };
             let formattedLocation = location;
-            if (!formattedLocation.startsWith("/")) {
-                formattedLocation = "./" + formattedLocation;
+            if (formattedLocation != "." && !formattedLocation.startsWith("/")) {
+                formattedLocation = "/" + formattedLocation;
             }
-            if (formattedLocation.endsWith("/")) {
+            if (formattedLocation != "." && formattedLocation.endsWith("/")) {
                 formattedLocation = formattedLocation.slice(0, formattedLocation.length - 1);
             }
             if (projectId == null) {
@@ -26056,10 +26056,8 @@ class CliCommands {
                     return;
                 }
                 try {
-                    let outputStreamBuffer = new stream_buffers_1.default.WritableStreamBuffer({
-                        initialSize: (1000 * 1024),
-                        incrementAmount: (1000 * 1024) // grow by 1000 kilobytes each time buffer overflows.
-                    });
+                    logger_util_1.showInfo("Start website zipping for future upload to the Hosti.io. Directory : " + formattedLocation);
+                    let outputStreamBuffer = new stream_buffers_1.default.WritableStreamBuffer();
                     const archive = archiver_1.default('zip', {
                         gzip: true,
                         gzipOptions: {
@@ -26097,6 +26095,14 @@ class CliCommands {
                     yield archive.directory(location + "/", false);
                     yield archive.finalize();
                     yield deploy_utils_1.writeConfigurationFile(location, configFile);
+                }
+                catch (e) {
+                    logger_util_1.showError("Failed site deployment with unexpected error");
+                    if (e != null) {
+                        logger_util_1.showError(e);
+                        logger_util_1.showError(e.stack);
+                    }
+                    throw e;
                 }
                 finally {
                     //if (await fs.existsSync(location + "/.hosti/")) {
