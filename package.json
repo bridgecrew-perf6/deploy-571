@@ -1,6 +1,6 @@
 {
   "name": "hosti-deploy",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -19,8 +19,8 @@
     "url": "https://github.com/hosti-io/deploy/issues"
   },
   "dependencies": {
-    "@actions/core" : "^1.2.6",
-    "hosti-cli" : "^0.1.4"
+    "@actions/core": "^1.2.6",
+    "hosti-cli": "^0.1.5"
   },
   "devDependencies": {
     "@vercel/ncc": "^0.25.1",
