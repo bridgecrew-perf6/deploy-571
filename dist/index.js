@@ -13427,9 +13427,13 @@ class CliCommandsExecuter {
                         yield this.cliCommands.logout();
                         break;
                     case answer_choise_1.SupportedCommands.DEPLOY_SITE:
+                        let deployLocation = answer.deployLocation;
+                        if (deployLocation == null || deployLocation.length == 0) {
+                            deployLocation = process.cwd();
+                        }
                         logger_util_1.showInfo("Start site deployment preparation...");
-                        logger_util_1.showInfo(`Start project deploy from " ${answer.deployLocation} " location`);
-                        yield this.cliCommands.deploySite(answer.deployLocation, answer.deployProjectId);
+                        logger_util_1.showInfo(`Start project deploy from " ${deployLocation} " location`);
+                        yield this.cliCommands.deploySite(deployLocation, answer.deployProjectId);
                         break;
                     default:
                         logger_util_1.showError(`Command not found`);
