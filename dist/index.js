@@ -13604,10 +13604,21 @@ class DeploySiteService {
         }
         return Promise.all(proms);
     }
-    processFile(zipEntry, relativePath, name) {
+    processZipFile(zipEntry, relativePath, name) {
         return tslib_1.__awaiter(this, void 0, void 0, function* () {
             let fileData = yield zipEntry.async("blob");
             let file = new File([fileData], zipEntry.name);
+            let deployFile = {
+                name: relativePath,
+                fileInstance: file,
+                contentType: mime_1.default.getType(name),
+                hash: yield this.hashProviderService.fileHash(relativePath)
+            };
+            return deployFile;
+        });
+    }
+    processSingleFile(file, relativePath, name) {
+        return tslib_1.__awaiter(this, void 0, void 0, function* () {
             let deployFile = {
                 name: relativePath,
                 fileInstance: file,
@@ -13644,11 +13655,20 @@ class DeploySiteService {
     getDeployFilesInFolder(folder) {
         return new Promise(((resolve, reject) => tslib_1.__awaiter(this, void 0, void 0, function* () {
             const promises = Array();
-            glob_1.glob(folder + "/**/*", (err, res) => tslib_1.__awaiter(this, void 0, void 0, function* () {
+            glob_1.glob(folder + "/**/*", { mark: true, nodir: true }, (err, res) => tslib_1.__awaiter(this, void 0, void 0, function* () {
+                if (err) {
+                    console.error("Error during fetching files in the folder", err.message);
+                    return reject(err);
+                }
                 for (let file of res) {
-                    if (fs.lstatSync(file).isDirectory())
-                        continue;
-                    promises.push(this.getDeployParamsForFile(file));
+                    fs.access(file, fs.constants.R_OK, (err) => {
+                        if (err) {
+                            console.warn("Not able to read the file. Ignore this file for deployment: " + file);
+                        }
+                        else {
+                            promises.push(this.getDeployParamsForFile(file));
+                        }
+                    });
                 }
                 const result = yield Promise.all(promises);
                 resolve(result);
@@ -13667,13 +13687,31 @@ class DeploySiteService {
         });
     }
     getDeployFiles(archive) {
+        return tslib_1.__awaiter(this, void 0, void 0, function* () {
+            switch (archive.type) {
+                case "text/html":
+                    return this.getDeployedIndex(archive);
+                default:
+                    return this.getDeployedZip(archive);
+            }
+        });
+    }
+    getDeployedIndex(archive) {
+        return tslib_1.__awaiter(this, void 0, void 0, function* () {
+            let array = [];
+            let indexFile = yield this.processSingleFile(archive, "index.html", "index.html");
+            array.push(indexFile);
+            return array;
+        });
+    }
+    getDeployedZip(archive) {
         return new Promise(((resolve, reject) => {
             const promises = Array();
             jszip_1.default.loadAsync(archive).then((zip) => tslib_1.__awaiter(this, void 0, void 0, function* () {
                 zip.forEach((relativePath, zipEntry) => {
                     if (zipEntry.dir)
                         return;
-                    promises.push(this.processFile(zipEntry, relativePath, zipEntry.name));
+                    promises.push(this.processZipFile(zipEntry, relativePath, zipEntry.name));
                 });
                 const result = yield Promise.all(promises);
                 resolve(result);
@@ -63798,19 +63836,17 @@ function __importDefault(mod) {
     return (mod && mod.__esModule) ? mod : { default: mod };
 }
 
-function __classPrivateFieldGet(receiver, privateMap) {
-    if (!privateMap.has(receiver)) {
-        throw new TypeError("attempted to get private field on non-instance");
-    }
-    return privateMap.get(receiver);
+function __classPrivateFieldGet(receiver, state, kind, f) {
+    if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
+    if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
+    return kind === "m" ? f : kind === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
 }
 
-function __classPrivateFieldSet(receiver, privateMap, value) {
-    if (!privateMap.has(receiver)) {
-        throw new TypeError("attempted to set private field on non-instance");
-    }
-    privateMap.set(receiver, value);
-    return value;
+function __classPrivateFieldSet(receiver, state, value, kind, f) {
+    if (kind === "m") throw new TypeError("Private method is not writable");
+    if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a setter");
+    if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
+    return (kind === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value)), value;
 }
 
 
