@@ -9870,8 +9870,9 @@ var assert = __nccwpck_require__(42357);
 var debug = __nccwpck_require__(31133);
 
 // Create handlers that pass events from native requests
+var events = ["abort", "aborted", "connect", "error", "socket", "timeout"];
 var eventHandlers = Object.create(null);
-["abort", "aborted", "connect", "error", "socket", "timeout"].forEach(function (event) {
+events.forEach(function (event) {
   eventHandlers[event] = function (arg1, arg2, arg3) {
     this._redirectable.emit(event, arg1, arg2, arg3);
   };
@@ -9926,9 +9927,7 @@ RedirectableRequest.prototype = Object.create(Writable.prototype);
 
 RedirectableRequest.prototype.abort = function () {
   // Abort the internal request
-  this._currentRequest.removeAllListeners();
-  this._currentRequest.on("error", noop);
-  this._currentRequest.abort();
+  abortRequest(this._currentRequest);
 
   // Abort this request
   this.emit("abort");
@@ -10019,8 +10018,14 @@ RedirectableRequest.prototype.setTimeout = function (msecs, callback) {
     this.on("timeout", callback);
   }
 
+  function destroyOnTimeout(socket) {
+    socket.setTimeout(msecs);
+    socket.removeListener("timeout", socket.destroy);
+    socket.addListener("timeout", socket.destroy);
+  }
+
   // Sets up a timer to trigger a timeout event
-  function startTimer() {
+  function startTimer(socket) {
     if (self._timeout) {
       clearTimeout(self._timeout);
     }
@@ -10028,6 +10033,7 @@ RedirectableRequest.prototype.setTimeout = function (msecs, callback) {
       self.emit("timeout");
       clearTimer();
     }, msecs);
+    destroyOnTimeout(socket);
   }
 
   // Prevent a timeout from triggering
@@ -10043,12 +10049,13 @@ RedirectableRequest.prototype.setTimeout = function (msecs, callback) {
 
   // Start the timer when the socket is opened
   if (this.socket) {
-    startTimer();
+    startTimer(this.socket);
   }
   else {
     this._currentRequest.once("socket", startTimer);
   }
 
+  this.on("socket", destroyOnTimeout);
   this.once("response", clearTimer);
   this.once("error", clearTimer);
 
@@ -10127,11 +10134,8 @@ RedirectableRequest.prototype._performRequest = function () {
 
   // Set up event handlers
   request._redirectable = this;
-  for (var event in eventHandlers) {
-    /* istanbul ignore else */
-    if (event) {
-      request.on(event, eventHandlers[event]);
-    }
+  for (var e = 0; e < events.length; e++) {
+    request.on(events[e], eventHandlers[events[e]]);
   }
 
   // End a redirected request
@@ -10189,9 +10193,7 @@ RedirectableRequest.prototype._processResponse = function (response) {
   if (location && this._options.followRedirects !== false &&
       statusCode >= 300 && statusCode < 400) {
     // Abort the current request
-    this._currentRequest.removeAllListeners();
-    this._currentRequest.on("error", noop);
-    this._currentRequest.abort();
+    abortRequest(this._currentRequest);
     // Discard the remainder of the response to avoid waiting for data
     response.destroy();
 
@@ -10381,6 +10383,14 @@ function createErrorType(code, defaultMessage) {
   CustomError.prototype.name = "Error [" + code + "]";
   CustomError.prototype.code = code;
   return CustomError;
+}
+
+function abortRequest(request) {
+  for (var e = 0; e < events.length; e++) {
+    request.removeListener(events[e], eventHandlers[events[e]]);
+  }
+  request.on("error", noop);
+  request.abort();
 }
 
 // Exports
@@ -13427,12 +13437,22 @@ class CliCommandsExecuter {
                         yield this.cliCommands.logout();
                         break;
                     case answer_choise_1.SupportedCommands.DEPLOY_SITE:
+                        logger_util_1.showInfo("Start site deployment preparation...");
                         let deployLocation = answer.deployLocation;
+                        logger_util_1.showInfo("Original deploy location: " + deployLocation);
                         if (deployLocation == null || deployLocation.length == 0) {
                             deployLocation = process.cwd();
                         }
-                        logger_util_1.showInfo("Start site deployment preparation...");
-                        logger_util_1.showInfo(`Start project deploy from " ${deployLocation} " location`);
+                        else if (deployLocation.startsWith("./") && deployLocation.startsWith(".\\")) {
+                            deployLocation = process.cwd() + deployLocation.slice(0, 1).toString();
+                        }
+                        else if (!deployLocation.startsWith("/") || !deployLocation.startsWith("\\")) {
+                            deployLocation = process.cwd() + "/" + deployLocation.toString();
+                        }
+                        if (deployLocation.endsWith("/") || deployLocation.endsWith("\\")) {
+                            deployLocation = deployLocation.slice(0, deployLocation.length - 1);
+                        }
+                        logger_util_1.showInfo(`Start project deploy from "${deployLocation}" (formatted) location`);
                         yield this.cliCommands.deploySite(deployLocation, answer.deployProjectId);
                         break;
                     default:
@@ -13551,6 +13571,7 @@ const mime_1 = tslib_1.__importDefault(__nccwpck_require__(29994));
 const glob_1 = __nccwpck_require__(91957);
 const path_1 = tslib_1.__importDefault(__nccwpck_require__(85622));
 const fs = tslib_1.__importStar(__nccwpck_require__(35747));
+const logger_util_1 = __nccwpck_require__(42758);
 class DeploySiteService {
     constructor(hashProviderService) {
         this.hashProviderService = hashProviderService;
@@ -13560,6 +13581,9 @@ class DeploySiteService {
             const deployRequest = yield this.getDeployParams(domain, archive);
             if (deployRequest == null)
                 throw new Error("Invalid deploy params");
+            if (deployRequest.files == null || deployRequest.files.length == 0) {
+                throw new Error("No files to upload selected. Please verify input first");
+            }
             if (token != null && user == null) {
                 deployRequest.token = token;
             }
@@ -13567,12 +13591,17 @@ class DeploySiteService {
             if (result.data == null || result.status < 200 || result.status > 300)
                 throw new Error("Deployment failed. Please try again later");
             const promises = new Array();
-            for (const file of result.data.filesToUpload) {
-                const originalFile = deployRequest.files.find((arg) => arg.hash === file.hash);
-                if (originalFile == null)
-                    throw Error("Upload file not found.");
-                const result = DeployAPI_1.uploadFileToStorage(originalFile.name, file.url, file.contentType);
-                promises.push(result);
+            if (result.data.filesToUpload.length == 0) {
+                logger_util_1.showInfo("Nothing for upload");
+            }
+            else {
+                for (const file of result.data.filesToUpload) {
+                    const originalFile = deployRequest.files.find((arg) => arg.hash === file.hash);
+                    if (originalFile == null)
+                        throw Error("Upload file not found.");
+                    const result = DeployAPI_1.uploadFileToStorage(originalFile.name, file.url, file.contentType);
+                    promises.push(result);
+                }
             }
             if (progress != null) {
                 yield this.allProgress(promises, progress);
@@ -13665,19 +13694,32 @@ class DeploySiteService {
                     return reject(err);
                 }
                 for (let file of res) {
-                    fs.access(file, fs.constants.R_OK, (err) => {
-                        if (err) {
-                            console.warn("Not able to read the file. Ignore this file for deployment: " + file);
-                        }
-                        else {
-                            promises.push(this.getDeployParamsForFile(file));
-                        }
-                    });
+                    promises.push(this.checkAccessAndReturnFilePromise(file));
                 }
                 const result = yield Promise.all(promises);
-                resolve(result);
+                if (result != null && result.length > 0) {
+                    resolve(result.filter((arg) => arg != undefined));
+                }
+                else {
+                    reject("No files for deployment");
+                }
             }));
         })));
+    }
+    checkAccessAndReturnFilePromise(file) {
+        return tslib_1.__awaiter(this, void 0, void 0, function* () {
+            return new Promise((resolve, reject) => {
+                fs.access(file, fs.constants.R_OK, (err) => {
+                    if (err) {
+                        console.warn("Not able to read the file. Ignore this file for deployment: " + file);
+                        resolve(undefined);
+                    }
+                    else {
+                        resolve(this.getDeployParamsForFile(file));
+                    }
+                });
+            });
+        });
     }
     getDeployParamsForFile(filePath) {
         return tslib_1.__awaiter(this, void 0, void 0, function* () {
