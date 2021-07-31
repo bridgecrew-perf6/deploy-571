@@ -6,6 +6,7 @@ try {
     const tokenKey = core.getInput('key');
     const projectId = core.getInput('projectId');
     const location = core.getInput('location');
+    const isSpaApplication = core.getBooleanInput('isSpaApplication');
 
     prepopulateEnv({
         apiKey: tokenKey,
@@ -13,7 +14,8 @@ try {
     cliCommandsExecuter.executeCommand({
         command: 1,
         deployLocation: location,
-        deployProjectId: projectId
+        deployProjectId: projectId,
+        isSpaApplication: isSpaApplication == null ? false : isSpaApplication
     });
 
 } catch (error) {

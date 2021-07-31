@@ -13,6 +13,7 @@ try {
     const tokenKey = core.getInput('key');
     const projectId = core.getInput('projectId');
     const location = core.getInput('location');
+    const isSpaApplication = core.getBooleanInput('isSpaApplication');
 
     prepopulateEnv({
         apiKey: tokenKey,
@@ -20,7 +21,8 @@ try {
     cliCommandsExecuter.executeCommand({
         command: 1,
         deployLocation: location,
-        deployProjectId: projectId
+        deployProjectId: projectId,
+        isSpaApplication: isSpaApplication == null ? false : isSpaApplication
     });
 
 } catch (error) {
@@ -9964,12 +9966,8 @@ function RedirectableRequest(options, responseCallback) {
 RedirectableRequest.prototype = Object.create(Writable.prototype);
 
 RedirectableRequest.prototype.abort = function () {
-  // Abort the internal request
   abortRequest(this._currentRequest);
-
-  // Abort this request
   this.emit("abort");
-  this.removeAllListeners();
 };
 
 // Writes buffered data to the current native request
@@ -13379,7 +13377,7 @@ class CliCommands {
             logger_util_1.showListOfUserSites(siteResult);
         });
     }
-    deploySite(location, projectId) {
+    deploySite(location, projectId, isSpaApplication) {
         return tslib_1.__awaiter(this, void 0, void 0, function* () {
             if (location == null) {
                 logger_util_1.showError("You need to provide path to the website that you want to deploy");
@@ -13417,7 +13415,7 @@ class CliCommands {
                 }
                 try {
                     logger_util_1.showInfo("Start website uploading: " + formattedLocation);
-                    yield this.deploySiteService.deployFolder(configFile.projectId, formattedLocation, undefined, undefined, (progress) => {
+                    yield this.deploySiteService.deployFolder(configFile.projectId, formattedLocation, isSpaApplication !== null && isSpaApplication !== void 0 ? isSpaApplication : false, undefined, undefined, (progress) => {
                         logger_util_1.showInfo("Upload progress: " + progress + "%");
                     });
                     yield deploy_utils_1.writeConfigurationFile(location, configFile);
@@ -13492,7 +13490,7 @@ class CliCommandsExecuter {
                             deployLocation = deployLocation.slice(0, deployLocation.length - 1);
                         }
                         logger_util_1.showInfo(`Start project deploy from "${deployLocation}" (formatted) location`);
-                        yield this.cliCommands.deploySite(deployLocation, answer.deployProjectId);
+                        yield this.cliCommands.deploySite(deployLocation, answer.deployProjectId, answer.isSpaApplication);
                         break;
                     default:
                         logger_util_1.showError(`Command not found`);
@@ -13615,9 +13613,9 @@ class DeploySiteService {
     constructor(hashProviderService) {
         this.hashProviderService = hashProviderService;
     }
-    deploySite(domain, archive, token, user, progress) {
+    deploySite(domain, archive, isSpaApplication, token, user, progress) {
         return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            const deployRequest = yield this.getDeployParams(domain, archive);
+            const deployRequest = yield this.getDeployParams(domain, isSpaApplication, archive);
             if (deployRequest == null)
                 throw new Error("Invalid deploy params");
             if (deployRequest.files == null || deployRequest.files.length == 0) {
@@ -13700,25 +13698,27 @@ class DeploySiteService {
             return deployFile;
         });
     }
-    getDeployParamsForFolder(domain, folder) {
+    getDeployParamsForFolder(domain, isSpaApplication, folder) {
         return tslib_1.__awaiter(this, void 0, void 0, function* () {
             let filesToDeploy = yield this.getDeployFilesInFolder(folder);
             if (filesToDeploy == null)
                 return null;
             let result = {
                 domain: domain,
+                isSpaApplication: isSpaApplication,
                 files: filesToDeploy
             };
             return result;
         });
     }
-    getDeployParams(domain, archive) {
+    getDeployParams(domain, isSpaApplication, archive) {
         return tslib_1.__awaiter(this, void 0, void 0, function* () {
             let filesToDeploy = yield this.getDeployFiles(archive);
             if (filesToDeploy == null)
                 return null;
             let result = {
                 domain: domain,
+                isSpaApplication: isSpaApplication,
                 files: filesToDeploy
             };
             return result;
@@ -13803,9 +13803,9 @@ class DeploySiteService {
             }));
         }));
     }
-    deployFolder(domain, folderPath, token, user, progress) {
+    deployFolder(domain, folderPath, isSpaApplication, token, user, progress) {
         return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            const deployRequest = yield this.getDeployParamsForFolder(domain, folderPath);
+            const deployRequest = yield this.getDeployParamsForFolder(domain, isSpaApplication, folderPath);
             if (deployRequest == null)
                 throw new Error("Invalid deploy params");
             if (token != null && user == null) {
@@ -21173,7 +21173,10 @@ function JSZip() {
     //   "folder/" : {...},
     //   "folder/data.txt" : {...}
     // }
-    this.files = {};
+    // NOTE: we use a null prototype because we do not
+    // want filenames like "toString" coming from a zip file
+    // to overwrite methods and attributes in a normal Object.
+    this.files = Object.create(null);
 
     this.comment = null;
 
@@ -21196,7 +21199,7 @@ JSZip.defaults = __nccwpck_require__(84697);
 
 // TODO find a better way to handle this version,
 // a require('package.json').version doesn't work with webpack, see #327
-JSZip.version = "3.6.0";
+JSZip.version = "3.7.0";
 
 JSZip.loadAsync = function (content, options) {
     return new JSZip().loadAsync(content, options);
@@ -21679,16 +21682,16 @@ var out = {
      */
     forEach: function(cb) {
         var filename, relativePath, file;
+        /* jshint ignore:start */
+        // ignore warning about unwanted properties because this.files is a null prototype object
         for (filename in this.files) {
-            if (!this.files.hasOwnProperty(filename)) {
-                continue;
-            }
             file = this.files[filename];
             relativePath = filename.slice(this.root.length, filename.length);
             if (relativePath && filename.slice(0, this.root.length) === this.root) { // the file is in the current root
                 cb(relativePath, file); // TODO reverse the parameters ? need to be clean AND consistent with the filter search fn...
             }
         }
+        /* jshint ignore:end */
     },
 
     /**
@@ -63862,10 +63865,14 @@ function __spreadArrays() {
     return r;
 }
 
-function __spreadArray(to, from) {
-    for (var i = 0, il = from.length, j = to.length; i < il; i++, j++)
-        to[j] = from[i];
-    return to;
+function __spreadArray(to, from, pack) {
+    if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
+        if (ar || !(i in from)) {
+            if (!ar) ar = Array.prototype.slice.call(from, 0, i);
+            ar[i] = from[i];
+        }
+    }
+    return to.concat(ar || from);
 }
 
 function __await(v) {
