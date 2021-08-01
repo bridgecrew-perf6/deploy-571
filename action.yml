@@ -10,6 +10,9 @@ inputs:
   location:
     description: 'Directory where the index.html file located'
     required: false
+  isSpaApplication: 
+    description: 'Is application is SPA based (like React, Angular, Vue, etc). This will ensure that your routing will take prioritet'
+    requried: false
 runs:
   using: 'node12'
   main: 'dist/index.js'

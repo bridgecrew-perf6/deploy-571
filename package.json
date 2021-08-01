@@ -19,7 +19,7 @@
     "url": "https://github.com/hosti-io/deploy/issues"
   },
   "dependencies": {
-    "@actions/core": "1.2.6",
+    "@actions/core": "1.4.0",
     "hosti-cli": "0.2.5"
   },
   "devDependencies": {
